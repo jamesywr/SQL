@@ -1,0 +1,33 @@
+-- this code will be used to create flags after creating multiple table as bases to union all
+
+        with CARD_BASE as 
+            (SELECT CUST_NBR FROM `dataset1`
+            where (CARD_INT_STATUS in unnest(['A','B']) and 
+            (card_status in unnest(["", "A", "H", "P", "Q", "R", "T", "X", "Y"])
+            ))
+            ,
+            MAIN_BASE as 
+            (select * FROM `dataset2`),
+            CARD_CUSTNUM as 
+            (select distinct substr(cust_nbr,5,15) as customer_number from card_base),
+            CARD_ONLY as 
+            (SELECT distinct A.CUSTOMER_NUMBER FROM CARD_CUSTNUM AS A
+              LEFT JOIN HUB_BASE AS B ON
+              A.CUSTOMER_NUMBER=B.CUSTOMER_NUMBER
+              WHERE B.CUSTOMER_NUMBER IS NULL),
+            MCY AS
+            (SELECT * FROM `dataset3`
+            where relationships in unnest (['sole','joint'])),
+            CASA AS
+            (SELECT distinct CUSTOMER_NUMBER FROM `dataset4`
+            where ACCOUNT_PRODUCT_TYPE in unnest(["CA1","CA2","CA3"]) and account_status='active'),
+            COMBINE AS (SELECT customer_number, "1_MCY" AS CUST_SEG FROM MCY
+              UNION ALL
+            SELECT customer_number, "3_CARD_ONLY" AS CUST_SEG FROM CARD_ONLY
+              UNION ALL
+            SELECT customer_number, "2_CASA" AS CUST_SEG FROM MAIN_BASE),
+            COMBINE_PROP AS (SELECT A.*,B.PROP
+            FROM COMBINE AS A
+            LEFT JOIN ALL_SOLE_CUST_PROP AS B ON
+            A.customer_number=B.customer_number)
+SELECT DISTINCT CUST_SEG, COUNT(1) AS COUNT_CUST FROM (SELECT DISTINCT CUSTOMER_NUMBER, MIN(CUST_SEG) AS CUST_SEG FROM COMBINE_PROP WHERE PROP IS NOT NULL GROUP BY 1) GROUP BY 1
